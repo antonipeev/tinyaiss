@@ -8,7 +8,7 @@ Inspired by [FAISS](https://github.com/facebookresearch/faiss).
 - IndexIVF (inverted file index with k-means clustering)
 - L2 and cosine distance metrics
 - Basic save/load functionality
-- ~3K lines of C++11 code, zero dependencies
+- small codebase, zero dependencies
 
 ## Building
 
