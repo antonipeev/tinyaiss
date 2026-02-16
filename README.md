@@ -1,6 +1,6 @@
-# tinyAISS
+# tinyaiss
 
-Yet another ANNS (Approximate Nearest Neighbor Search) implementation in C++. A personal learning project inspired by [FAISS](https://github.com/facebookresearch/faiss).
+Inspired by [FAISS](https://github.com/facebookresearch/faiss).
 
 ## What's Included
 

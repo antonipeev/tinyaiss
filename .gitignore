@@ -73,6 +73,3 @@ ipch/
 *.vsp
 *.vspx
 *.sap
-
-# tests
-tests/
