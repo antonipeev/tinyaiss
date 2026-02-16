@@ -91,6 +91,12 @@ void TopKHeap::dump_sorted(float* out_distances, int64_t* out_ids) {
         }
     }
 
+    // fill remaining positions with sentinel values if size < capacity
+    for (uint32_t i = original_size; i < capacity; i++) {
+        out_distances[i] = std::numeric_limits<float>::max();
+        out_ids[i] = -1;
+    }
+
     // reset for next query
     size = 0;
 }

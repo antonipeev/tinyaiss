@@ -4,6 +4,7 @@
 #include "../io/serialization.h"
 #include <cstring>
 #include <fstream>
+#include <limits>
 
 namespace tinyaiss {
 
@@ -78,6 +79,12 @@ SearchResult search(const Index* index, const float* queries,
     SearchResult result;
     result.distances = new float[nq * k];
     result.ids = new int64_t[nq * k];
+
+    // initialize output arrays with sentinel values
+    for (uint64_t i = 0; i < nq * k; i++) {
+        result.distances[i] = std::numeric_limits<float>::max();
+        result.ids[i] = -1;
+    }
 
     if (!index) {
         return result;

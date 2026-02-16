@@ -16,6 +16,9 @@ static void kmeans_init(AlignedMatrix& centroids, const float* data, uint64_t n,
     std::mt19937_64 rng(seed);
     std::uniform_int_distribution<uint64_t> uniform(0, n - 1);
 
+    // select distance function based on metric
+    DistanceFunc distance_fn = (metric == MetricType::COSINE) ? distance_ip : distance_l2;
+
     // select first centroid randomly
     uint64_t first_idx = uniform(rng);
     std::memcpy(centroids.row(0), data + first_idx * dim_stride, dim * sizeof(float));
@@ -29,7 +32,7 @@ static void kmeans_init(AlignedMatrix& centroids, const float* data, uint64_t n,
         const float* prev_centroid = centroids.row(c - 1);
 
         for (uint64_t i = 0; i < n; i++) {
-            float d = distance_l2(data + i * dim_stride, prev_centroid, dim);
+            float d = distance_fn(data + i * dim_stride, prev_centroid, dim);
             if (d < min_dists[i]) {
                 min_dists[i] = d;
             }
@@ -60,6 +63,9 @@ AlignedMatrix kmeans_train(const float* data, uint64_t n, uint32_t dim,
                            MetricType metric) {
     const uint32_t k = config.k;
 
+    // select distance function based on metric
+    DistanceFunc distance_fn = (metric == MetricType::COSINE) ? distance_ip : distance_l2;
+
     // allocate centroids
     AlignedMatrix centroids;
     centroids.allocate(k, dim);
@@ -87,7 +93,7 @@ AlignedMatrix kmeans_train(const float* data, uint64_t n, uint32_t dim,
             uint32_t best_c = 0;
 
             for (uint32_t c = 0; c < k; c++) {
-                float d = distance_l2(vec, centroids.row(c), dim);
+                float d = distance_fn(vec, centroids.row(c), dim);
                 if (d < best_dist) {
                     best_dist = d;
                     best_c = c;
@@ -124,7 +130,7 @@ AlignedMatrix kmeans_train(const float* data, uint64_t n, uint32_t dim,
             }
 
             // compute shift
-            float shift = distance_l2(centroids.row(c), new_centroids.row(c), dim);
+            float shift = distance_fn(centroids.row(c), new_centroids.row(c), dim);
             if (shift > max_shift) {
                 max_shift = shift;
             }

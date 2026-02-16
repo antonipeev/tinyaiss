@@ -41,11 +41,14 @@ void AlignedMatrix::allocate(uint32_t rows_, uint32_t cols_) {
     col_stride = padded_dimension(cols_);
 
     size_t total_bytes = static_cast<size_t>(rows) * col_stride * sizeof(float);
-    data = static_cast<float*>(aligned_alloc_wrapper(64, total_bytes));
-
-    // zero-initialize
-    if (data) {
-        std::memset(data, 0, total_bytes);
+    if (total_bytes > 0) {
+        data = static_cast<float*>(aligned_alloc_wrapper(64, total_bytes));
+        // zero-initialize
+        if (data) {
+            std::memset(data, 0, total_bytes);
+        }
+    } else {
+        data = nullptr;
     }
 }
 

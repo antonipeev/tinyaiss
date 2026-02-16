@@ -61,11 +61,19 @@ void InvertedLists::allocate(uint32_t nlist_, uint32_t dim_, uint32_t total_vect
 
     // allocate contiguous vector storage
     size_t vector_bytes = static_cast<size_t>(total_vectors) * dim_stride * sizeof(float);
-    vectors = static_cast<float*>(aligned_alloc_wrapper(64, vector_bytes));
-    std::memset(vectors, 0, vector_bytes);
+    if (vector_bytes > 0) {
+        vectors = static_cast<float*>(aligned_alloc_wrapper(64, vector_bytes));
+        std::memset(vectors, 0, vector_bytes);
+    } else {
+        vectors = nullptr;
+    }
 
     // allocate id storage
-    ids = new int64_t[total_vectors];
+    if (total_vectors > 0) {
+        ids = new int64_t[total_vectors];
+    } else {
+        ids = nullptr;
+    }
 
     // allocate list metadata
     list_offsets = new uint32_t[nlist + 1];  // +1 for terminal offset

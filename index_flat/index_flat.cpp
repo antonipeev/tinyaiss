@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cmath>
 #include <utility>
+#include <limits>
 
 namespace tinyaiss {
 
@@ -43,6 +44,13 @@ IndexFlat::~IndexFlat() {
 
 void IndexFlat::add(const float* data, const int64_t* ids_in, uint64_t n) {
     uint32_t old_ntotal = ntotal;
+
+    // validate that we won't overflow uint32_t
+    if (n > UINT32_MAX || old_ntotal > UINT32_MAX - n) {
+        // overflow would occur
+        return;
+    }
+
     uint32_t new_ntotal = old_ntotal + static_cast<uint32_t>(n);
 
     // reallocate vectors matrix
@@ -55,7 +63,6 @@ void IndexFlat::add(const float* data, const int64_t* ids_in, uint64_t n) {
     }
 
     // copy new vectors
-    uint32_t dim_stride = vectors.col_stride > 0 ? vectors.col_stride : new_vectors.col_stride;
     for (uint64_t i = 0; i < n; i++) {
         const float* src = data + i * dim;
         float* dst = new_vectors.row(old_ntotal + static_cast<uint32_t>(i));
@@ -96,6 +103,11 @@ void IndexFlat::add(const float* data, const int64_t* ids_in, uint64_t n) {
 void IndexFlat::search(const float* queries, uint64_t nq, uint32_t k,
                        float* out_distances, int64_t* out_ids) const {
     if (ntotal == 0) {
+        // initialize output with sentinel values
+        for (uint64_t i = 0; i < nq * k; i++) {
+            out_distances[i] = std::numeric_limits<float>::max();
+            out_ids[i] = -1;
+        }
         return;
     }
 

@@ -110,6 +110,12 @@ void IndexIVF::add(const float* data, const int64_t* ids_in, uint64_t n) {
     }
 
     // phase 3: build packed inverted lists
+    // validate that we won't overflow uint32_t
+    if (n > UINT32_MAX || ntotal > UINT32_MAX - n) {
+        delete[] add_data;
+        return;
+    }
+
     uint32_t total_vecs = ntotal + static_cast<uint32_t>(n);
 
     InvertedLists new_lists;
@@ -171,6 +177,11 @@ void IndexIVF::add(const float* data, const int64_t* ids_in, uint64_t n) {
 void IndexIVF::search(const float* queries, uint64_t nq, uint32_t k,
                      float* out_distances, int64_t* out_ids) const {
     if (!is_trained || ntotal == 0) {
+        // initialize output with sentinel values
+        for (uint64_t i = 0; i < nq * k; i++) {
+            out_distances[i] = std::numeric_limits<float>::max();
+            out_ids[i] = -1;
+        }
         return;
     }
 

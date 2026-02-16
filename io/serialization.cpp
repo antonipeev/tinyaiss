@@ -77,6 +77,14 @@ IndexFlat* load_index_flat(const char* path) {
 
     // read vectors
     index->vectors.allocate(static_cast<uint32_t>(header.ntotal), header.dim);
+
+    // verify dim_stride matches to prevent silent data corruption
+    if (index->vectors.col_stride != header.dim_stride) {
+        delete index;
+        file.close();
+        return nullptr;
+    }
+
     file.read(reinterpret_cast<char*>(index->vectors.data), index->vectors.bytes());
     index->ntotal = static_cast<uint32_t>(header.ntotal);
 
@@ -164,6 +172,14 @@ IndexIVF* load_index_ivf(const char* path) {
 
     // read centroids
     index->centroids.allocate(header.nlist, header.dim);
+
+    // verify dim_stride matches for centroids
+    if (index->centroids.col_stride != header.dim_stride) {
+        delete index;
+        file.close();
+        return nullptr;
+    }
+
     file.read(reinterpret_cast<char*>(index->centroids.data),
              index->centroids.bytes());
     index->is_trained = true;
@@ -172,6 +188,13 @@ IndexIVF* load_index_ivf(const char* path) {
 
     // read list metadata
     index->lists.allocate(header.nlist, header.dim, static_cast<uint32_t>(header.ntotal));
+
+    // verify dim_stride matches for inverted lists
+    if (index->lists.dim_stride != header.dim_stride) {
+        delete index;
+        file.close();
+        return nullptr;
+    }
     file.read(reinterpret_cast<char*>(index->lists.list_offsets),
              (header.nlist + 1) * sizeof(uint32_t));
     file.read(reinterpret_cast<char*>(index->lists.list_sizes),
