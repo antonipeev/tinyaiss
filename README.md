@@ -16,7 +16,6 @@ Inspired by [FAISS](https://github.com/facebookresearch/faiss).
 mkdir build && cd build
 cmake ..
 cmake --build .
-./tests/example_usage  # Run tests
 ```
 
 ## Usage
