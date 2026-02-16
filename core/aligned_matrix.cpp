@@ -1,6 +1,7 @@
 #include "aligned_matrix.h"
 #include "memory.h"
 #include <cstring>
+#include <limits>
 
 namespace tinyaiss {
 
@@ -34,22 +35,40 @@ AlignedMatrix& AlignedMatrix::operator=(AlignedMatrix&& other) noexcept {
     return *this;
 }
 
-void AlignedMatrix::allocate(uint32_t rows_, uint32_t cols_) {
+bool AlignedMatrix::allocate(uint32_t rows_, uint32_t cols_) {
     free();
     rows = rows_;
     cols = cols_;
     col_stride = padded_dimension(cols_);
 
-    size_t total_bytes = static_cast<size_t>(rows) * col_stride * sizeof(float);
+    // overflow-safe size computation: rows * col_stride * sizeof(float)
+    size_t total_bytes = 0;
+    if (rows > 0 && col_stride > 0) {
+        // check: rows * col_stride overflows?
+        if (rows > std::numeric_limits<size_t>::max() / col_stride) {
+            free();
+            return false;
+        }
+        size_t total_elements = static_cast<size_t>(rows) * col_stride;
+        // check: total_elements * sizeof(float) overflows?
+        if (total_elements > std::numeric_limits<size_t>::max() / sizeof(float)) {
+            free();
+            return false;
+        }
+        total_bytes = total_elements * sizeof(float);
+    }
+
     if (total_bytes > 0) {
         data = static_cast<float*>(aligned_alloc_wrapper(64, total_bytes));
-        // zero-initialize
-        if (data) {
-            std::memset(data, 0, total_bytes);
+        if (!data) {
+            free();
+            return false;
         }
+        std::memset(data, 0, total_bytes);
     } else {
         data = nullptr;
     }
+    return true;
 }
 
 void AlignedMatrix::free() {

@@ -27,7 +27,8 @@ struct InvertedLists {
     InvertedLists& operator=(InvertedLists&& other) noexcept;
 
     // allocate storage for packed lists
-    void allocate(uint32_t nlist, uint32_t dim, uint32_t total_vectors);
+    // returns false if allocation fails (overflow or out of memory)
+    bool allocate(uint32_t nlist, uint32_t dim, uint32_t total_vectors);
 
     // free storage
     void free();

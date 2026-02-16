@@ -131,6 +131,9 @@ Index* load(const char* path) {
     file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
     file.read(reinterpret_cast<char*>(&version), sizeof(version));
     file.read(reinterpret_cast<char*>(&index_type), sizeof(index_type));
+    if (!file.good()) {
+        return nullptr;
+    }
     file.close();
 
     if (magic != MAGIC_NUMBER || version != FORMAT_VERSION) {

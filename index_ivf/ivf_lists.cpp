@@ -2,6 +2,8 @@
 #include "../core/memory.h"
 #include "../core/aligned_matrix.h"
 #include <cstring>
+#include <limits>
+#include <new>
 
 namespace tinyaiss {
 
@@ -51,7 +53,7 @@ InvertedLists& InvertedLists::operator=(InvertedLists&& other) noexcept {
     return *this;
 }
 
-void InvertedLists::allocate(uint32_t nlist_, uint32_t dim_, uint32_t total_vectors_) {
+bool InvertedLists::allocate(uint32_t nlist_, uint32_t dim_, uint32_t total_vectors_) {
     free();
 
     nlist = nlist_;
@@ -59,10 +61,28 @@ void InvertedLists::allocate(uint32_t nlist_, uint32_t dim_, uint32_t total_vect
     dim_stride = padded_dimension(dim_);
     total_vectors = total_vectors_;
 
+    // overflow-safe size computation for vector storage
+    size_t vector_bytes = 0;
+    if (total_vectors > 0 && dim_stride > 0) {
+        if (total_vectors > std::numeric_limits<size_t>::max() / dim_stride) {
+            free();
+            return false;
+        }
+        size_t total_elements = static_cast<size_t>(total_vectors) * dim_stride;
+        if (total_elements > std::numeric_limits<size_t>::max() / sizeof(float)) {
+            free();
+            return false;
+        }
+        vector_bytes = total_elements * sizeof(float);
+    }
+
     // allocate contiguous vector storage
-    size_t vector_bytes = static_cast<size_t>(total_vectors) * dim_stride * sizeof(float);
     if (vector_bytes > 0) {
         vectors = static_cast<float*>(aligned_alloc_wrapper(64, vector_bytes));
+        if (!vectors) {
+            free();
+            return false;
+        }
         std::memset(vectors, 0, vector_bytes);
     } else {
         vectors = nullptr;
@@ -70,17 +90,26 @@ void InvertedLists::allocate(uint32_t nlist_, uint32_t dim_, uint32_t total_vect
 
     // allocate id storage
     if (total_vectors > 0) {
-        ids = new int64_t[total_vectors];
+        ids = new(std::nothrow) int64_t[total_vectors];
+        if (!ids) {
+            free();
+            return false;
+        }
     } else {
         ids = nullptr;
     }
 
     // allocate list metadata
-    list_offsets = new uint32_t[nlist + 1];  // +1 for terminal offset
-    list_sizes = new uint32_t[nlist];
+    list_offsets = new(std::nothrow) uint32_t[nlist + 1];  // +1 for terminal offset
+    list_sizes = new(std::nothrow) uint32_t[nlist];
+    if (!list_offsets || !list_sizes) {
+        free();
+        return false;
+    }
 
     std::memset(list_offsets, 0, (nlist + 1) * sizeof(uint32_t));
     std::memset(list_sizes, 0, nlist * sizeof(uint32_t));
+    return true;
 }
 
 void InvertedLists::free() {

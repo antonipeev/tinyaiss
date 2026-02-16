@@ -24,7 +24,8 @@ struct AlignedMatrix {
     AlignedMatrix& operator=(AlignedMatrix&& other) noexcept;
 
     // allocate storage for rows × cols vectors with padding
-    void allocate(uint32_t rows, uint32_t cols);
+    // returns false if allocation fails (overflow or out of memory)
+    bool allocate(uint32_t rows, uint32_t cols);
 
     // free storage
     void free();
