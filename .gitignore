@@ -73,3 +73,5 @@ ipch/
 *.vsp
 *.vspx
 *.sap
+/testsPrivate
+tests/performance-test.cpp
