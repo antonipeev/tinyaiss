@@ -86,17 +86,21 @@ void IndexIVF::add(const float* data, const int64_t* ids_in, uint64_t n) {
         add_ptr = add_data;
     }
 
-    // phase 1: assign each vector to nearest centroid
+    // phase 1: assign each vector to nearest centroid (batch distance)
     std::vector<uint32_t> assignments(n);
+    std::vector<float> centroid_dists(nlist);
     for (uint64_t i = 0; i < n; i++) {
         const float* vec = add_ptr + i * dim;
-        float best_dist = std::numeric_limits<float>::max();
-        uint32_t best_list = 0;
 
-        for (uint32_t c = 0; c < nlist; c++) {
-            float d = kernel.single(vec, centroids.row(c), dim);
-            if (d < best_dist) {
-                best_dist = d;
+        // batch-compute distance from this vector to all centroids at once
+        kernel.batch(vec, centroids.data, nlist, dim, centroids.col_stride,
+                     centroid_dists.data());
+
+        uint32_t best_list = 0;
+        float best_dist = centroid_dists[0];
+        for (uint32_t c = 1; c < nlist; c++) {
+            if (centroid_dists[c] < best_dist) {
+                best_dist = centroid_dists[c];
                 best_list = c;
             }
         }
@@ -203,11 +207,10 @@ void IndexIVF::search(const float* queries, uint64_t nq, uint32_t k,
     for (uint64_t i = 0; i < nq; i++) {
         const float* query = query_ptr + i * dim;
 
-        // step 1: compute distances to all centroids
+        // step 1: batch-compute distances to all centroids
         std::vector<float> centroid_dists(nlist);
-        for (uint32_t c = 0; c < nlist; c++) {
-            centroid_dists[c] = kernel.single(query, centroids.row(c), dim);
-        }
+        kernel.batch(query, centroids.data, nlist, dim, centroids.col_stride,
+                     centroid_dists.data());
 
         // step 2: select nprobe nearest centroids
         std::vector<uint32_t> probe_indices(nlist);

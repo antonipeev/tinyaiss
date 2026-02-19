@@ -9,15 +9,13 @@
 
 namespace tinyaiss {
 
-// k-means++ initialization
+// k-means++ initialization — uses batch distance for speed
 static void kmeans_init(AlignedMatrix& centroids, const float* data, uint64_t n,
                        uint32_t dim, uint32_t dim_stride, uint32_t k,
-                       uint64_t seed, MetricType metric) {
+                       uint64_t seed, MetricType metric,
+                       DistanceBatchFunc batch_fn) {
     std::mt19937_64 rng(seed);
     std::uniform_int_distribution<uint64_t> uniform(0, n - 1);
-
-    // select distance function based on metric
-    DistanceFunc distance_fn = (metric == MetricType::COSINE) ? distance_ip : distance_l2;
 
     // select first centroid randomly
     uint64_t first_idx = uniform(rng);
@@ -25,20 +23,22 @@ static void kmeans_init(AlignedMatrix& centroids, const float* data, uint64_t n,
 
     // track minimum distances
     std::vector<float> min_dists(n, std::numeric_limits<float>::max());
+    std::vector<float> cur_dists(n);
 
     // select remaining centroids
     for (uint32_t c = 1; c < k; c++) {
-        // update min distances to nearest chosen centroid
+        // batch-compute distances from all data points to the previous centroid
         const float* prev_centroid = centroids.row(c - 1);
+        batch_fn(prev_centroid, data, static_cast<uint32_t>(n), dim, dim_stride,
+                 cur_dists.data());
 
         for (uint64_t i = 0; i < n; i++) {
-            float d = distance_fn(data + i * dim_stride, prev_centroid, dim);
-            if (d < min_dists[i]) {
-                min_dists[i] = d;
+            if (cur_dists[i] < min_dists[i]) {
+                min_dists[i] = cur_dists[i];
             }
         }
 
-        // sample proportional to distance squared
+        // sample proportional to distance
         double total = 0.0;
         for (uint64_t i = 0; i < n; i++) {
             total += min_dists[i];
@@ -63,19 +63,23 @@ AlignedMatrix kmeans_train(const float* data, uint64_t n, uint32_t dim,
                            MetricType metric) {
     const uint32_t k = config.k;
 
-    // select distance function based on metric
+    // select distance functions based on metric
     DistanceFunc distance_fn = (metric == MetricType::COSINE) ? distance_ip : distance_l2;
+    DistanceBatchFunc batch_fn = (metric == MetricType::COSINE) ? distance_ip_batch
+                                                                : distance_l2_batch;
 
     // allocate centroids
     AlignedMatrix centroids;
     centroids.allocate(k, dim);
 
     // initialize with k-means++
-    kmeans_init(centroids, data, n, dim, dim_stride, k, config.seed, metric);
+    kmeans_init(centroids, data, n, dim, dim_stride, k, config.seed, metric,
+                batch_fn);
 
     // allocate working buffers
     std::vector<uint32_t> assignments(n);
     std::vector<uint32_t> counts(k);
+    std::vector<float> dists(k);  // reusable per-vector distance buffer
     AlignedMatrix new_centroids;
     new_centroids.allocate(k, dim);
 
@@ -89,13 +93,17 @@ AlignedMatrix kmeans_train(const float* data, uint64_t n, uint32_t dim,
 
         for (uint64_t i = 0; i < n; i++) {
             const float* vec = data + i * dim_stride;
-            float best_dist = std::numeric_limits<float>::max();
-            uint32_t best_c = 0;
 
-            for (uint32_t c = 0; c < k; c++) {
-                float d = distance_fn(vec, centroids.row(c), dim);
-                if (d < best_dist) {
-                    best_dist = d;
+            // batch-compute distance from this vector to all k centroids at once
+            batch_fn(vec, centroids.data, k, dim, centroids.col_stride,
+                     dists.data());
+
+            // find nearest centroid from batch results
+            uint32_t best_c = 0;
+            float best_dist = dists[0];
+            for (uint32_t c = 1; c < k; c++) {
+                if (dists[c] < best_dist) {
+                    best_dist = dists[c];
                     best_c = c;
                 }
             }
